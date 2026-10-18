@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
@@ -68,6 +69,8 @@ import com.nuvio.app.features.cloud.CloudLibraryFile
 import com.nuvio.app.features.cloud.CloudLibraryItem
 import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.HomeScreen
+import com.nuvio.app.features.home.SmartBrowseScreen
+import com.nuvio.app.features.home.SmartBrowseCategory
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.library.LibraryItem
 import com.nuvio.app.features.library.LibraryScreen
@@ -136,6 +139,8 @@ internal data class AppTabState(
 
 internal data class AppTabRequests(
     val homeScrollToTopRequests: Flow<Unit>,
+    val moviesScrollToTopRequests: Flow<Unit>,
+    val seriesScrollToTopRequests: Flow<Unit>,
     val searchScrollToTopRequests: Flow<Unit>,
     val libraryScrollToTopRequests: Flow<Unit>,
     val liveTvScrollToTopRequests: Flow<Unit>,
@@ -208,6 +213,25 @@ internal fun AppTabHost(
                         onFirstCatalogRendered = actions.onInitialHomeContentRendered,
                     )
                 }
+            }
+
+            AppScreenTab.Movies, AppScreenTab.Series -> {
+                SmartBrowseScreen(
+                    category = if (tab == AppScreenTab.Movies) {
+                        SmartBrowseCategory.MOVIES
+                    } else {
+                        SmartBrowseCategory.SERIES
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    scrollToTopRequests = if (tab == AppScreenTab.Movies) {
+                        requests.moviesScrollToTopRequests
+                    } else {
+                        requests.seriesScrollToTopRequests
+                    },
+                    onCatalogClick = actions.onCatalogClick,
+                    onPosterClick = actions.onPosterClick,
+                    onPosterLongClick = actions.onPosterLongClick,
+                )
             }
 
             AppScreenTab.Search -> {
@@ -321,6 +345,32 @@ internal fun TabletFloatingTopBar(
                             } else {
                                 tokens.colors.textMuted
                             },
+                        )
+                    },
+                )
+                TabletTopPillItem(
+                    label = "Movies",
+                    selected = selectedTab == AppScreenTab.Movies,
+                    onClick = { onTabSelected(AppScreenTab.Movies) },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = "Movies",
+                            modifier = Modifier.size(NuvioTokens.Space.s18),
+                            tint = if (selectedTab == AppScreenTab.Movies) tokens.colors.textPrimary else tokens.colors.textMuted,
+                        )
+                    },
+                )
+                TabletTopPillItem(
+                    label = "Series",
+                    selected = selectedTab == AppScreenTab.Series,
+                    onClick = { onTabSelected(AppScreenTab.Series) },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Filled.Tv,
+                            contentDescription = "Series",
+                            modifier = Modifier.size(NuvioTokens.Space.s18),
+                            tint = if (selectedTab == AppScreenTab.Series) tokens.colors.textPrimary else tokens.colors.textMuted,
                         )
                     },
                 )

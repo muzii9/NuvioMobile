@@ -266,6 +266,8 @@ internal fun MainAppContent(
         var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
         var searchFocusRequestCount by remember { mutableStateOf(0) }
         val homeScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
+        val moviesScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
+        val seriesScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val searchScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val searchListState = rememberLazyListState()
         val libraryScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
@@ -457,6 +459,8 @@ internal fun MainAppContent(
 
         when (tab) {
             AppScreenTab.Home -> homeScrollToTopRequests.tryEmit(Unit)
+            AppScreenTab.Movies -> moviesScrollToTopRequests.tryEmit(Unit)
+            AppScreenTab.Series -> seriesScrollToTopRequests.tryEmit(Unit)
             AppScreenTab.Search -> {
                 searchFocusRequestCount++
                 searchScrollToTopRequests.tryEmit(Unit)
@@ -1587,6 +1591,8 @@ internal fun MainAppContent(
                         showLiveTvInNavigation = showLiveTvInNavigation,
                         requests = remember(
                             homeScrollToTopRequests,
+                            moviesScrollToTopRequests,
+                            seriesScrollToTopRequests,
                             searchScrollToTopRequests,
                             libraryScrollToTopRequests,
                             liveTvScrollToTopRequests,
@@ -1594,6 +1600,8 @@ internal fun MainAppContent(
                         ) {
                             AppTabRequests(
                                 homeScrollToTopRequests = homeScrollToTopRequests,
+                                moviesScrollToTopRequests = moviesScrollToTopRequests,
+                                seriesScrollToTopRequests = seriesScrollToTopRequests,
                                 searchScrollToTopRequests = searchScrollToTopRequests,
                                 libraryScrollToTopRequests = libraryScrollToTopRequests,
                                 liveTvScrollToTopRequests = liveTvScrollToTopRequests,

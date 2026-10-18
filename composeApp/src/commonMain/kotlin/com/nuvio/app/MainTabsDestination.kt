@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -209,6 +210,22 @@ internal fun mainFloatingNavigationItems(
     )
     add(
         FloatingNavigationItem(
+            selected = highlightedTab == AppScreenTab.Movies,
+            onClick = { onTabSelected(AppScreenTab.Movies) },
+            icon = Icons.Filled.PlayArrow,
+            label = "Movies",
+        ),
+    )
+    add(
+        FloatingNavigationItem(
+            selected = highlightedTab == AppScreenTab.Series,
+            onClick = { onTabSelected(AppScreenTab.Series) },
+            icon = Icons.Filled.Tv,
+            label = "Series",
+        ),
+    )
+    add(
+        FloatingNavigationItem(
             selected = highlightedTab == AppScreenTab.Search,
             onClick = { onTabSelected(AppScreenTab.Search) },
             drawable = Res.drawable.sidebar_search,
@@ -267,6 +284,18 @@ internal fun MainClassicNavigationBar(
             onClick = { onTabSelected(AppScreenTab.Home) },
             icon = Icons.Filled.Home,
             contentDescription = stringResource(Res.string.compose_nav_home),
+        )
+        NavItem(
+            selected = highlightedTab == AppScreenTab.Movies,
+            onClick = { onTabSelected(AppScreenTab.Movies) },
+            icon = Icons.Filled.PlayArrow,
+            contentDescription = "Movies",
+        )
+        NavItem(
+            selected = highlightedTab == AppScreenTab.Series,
+            onClick = { onTabSelected(AppScreenTab.Series) },
+            icon = Icons.Filled.Tv,
+            contentDescription = "Series",
         )
         NavItem(
             selected = highlightedTab == AppScreenTab.Search,
