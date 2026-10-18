@@ -4,12 +4,12 @@ import com.nuvio.app.core.ui.NativeNavigationTab
 
 enum class AppScreenTab {
     Home,
-    Movies,
-    Series,
     Search,
     Library,
     LiveTv,
     Settings,
+    Movies,
+    Series,
     ;
 
     companion object {

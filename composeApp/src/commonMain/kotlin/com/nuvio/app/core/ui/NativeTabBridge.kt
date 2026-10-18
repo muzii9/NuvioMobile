@@ -26,12 +26,12 @@ import kotlinx.coroutines.launch
 
 internal enum class NativeNavigationTab {
     Home,
-    Movies,
-    Series,
     Search,
     Library,
     LiveTv,
     Settings,
+    Movies,
+    Series,
     ;
 
     companion object {

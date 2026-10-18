@@ -263,13 +263,13 @@ object HomeRepository {
         // A hidden Home row is a layout preference, not a disabled media source.
         // Publish every fetched section for Movies/Series while preserving the original
         // preference-filtered sections used by the existing Home screen.
+        // Upcoming items remain discoverable on the browse tabs even when hidden on Home.
         val allEntries = currentDefinitions
             .sortedBy { definition -> preferences[definition.key]?.order ?: Int.MAX_VALUE }
             .mapNotNull { definition ->
                 val preference = preferences[definition.key]
                 val section = cachedSections[definition.cacheKey]
                     ?.withPosterOverlay()
-                    ?.withReleaseFilter()
                     ?: return@mapNotNull null
                 if (section.items.isEmpty()) return@mapNotNull null
                 val customTitle = preference?.customTitle.orEmpty()
@@ -277,9 +277,12 @@ object HomeRepository {
                     title = customTitle.ifBlank { definition.titleFor(snapshot.showCatalogType) },
                 )
             }
-        val entries = allEntries
-            .filter { (definition, _) -> preferences[definition.key]?.enabled != false }
-            .map { (definition, section) -> definition.cacheKey to section }
+        val entries = allEntries.mapNotNull { (definition, section) ->
+            if (preferences[definition.key]?.enabled == false) return@mapNotNull null
+            val homeSection = section.withReleaseFilter()
+            if (homeSection.items.isEmpty()) return@mapNotNull null
+            definition.cacheKey to homeSection
+        }
         if (entries.isNotEmpty() || currentDefinitions.isNotEmpty()) {
             lastPublishedEntries = entries
         }
