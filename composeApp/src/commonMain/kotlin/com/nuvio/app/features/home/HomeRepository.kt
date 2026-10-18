@@ -224,6 +224,7 @@ object HomeRepository {
             isLoading = true,
             heroItems = snapshot.heroItems,
             sections = snapshot.sections.map { (_, section) -> section },
+            browseSections = snapshot.sections.map { (_, section) -> section },
         )
     }
 
@@ -259,22 +260,26 @@ object HomeRepository {
         fun HomeCatalogSection.withPosterOverlay(): HomeCatalogSection =
             copy(items = items.reapplyCustomPosterUrls(posterPattern))
 
-        val entries = currentDefinitions
+        // A hidden Home row is a layout preference, not a disabled media source.
+        // Publish every fetched section for Movies/Series while preserving the original
+        // preference-filtered sections used by the existing Home screen.
+        val allEntries = currentDefinitions
             .sortedBy { definition -> preferences[definition.key]?.order ?: Int.MAX_VALUE }
             .mapNotNull { definition ->
                 val preference = preferences[definition.key]
-                if (preference?.enabled == false) return@mapNotNull null
-
                 val section = cachedSections[definition.cacheKey]
                     ?.withPosterOverlay()
                     ?.withReleaseFilter()
                     ?: return@mapNotNull null
                 if (section.items.isEmpty()) return@mapNotNull null
                 val customTitle = preference?.customTitle.orEmpty()
-                definition.cacheKey to section.copy(
+                definition to section.copy(
                     title = customTitle.ifBlank { definition.titleFor(snapshot.showCatalogType) },
                 )
             }
+        val entries = allEntries
+            .filter { (definition, _) -> preferences[definition.key]?.enabled != false }
+            .map { (definition, section) -> definition.cacheKey to section }
         if (entries.isNotEmpty() || currentDefinitions.isNotEmpty()) {
             lastPublishedEntries = entries
         }
@@ -310,6 +315,7 @@ object HomeRepository {
             heroItems = heroItems,
             sections = sections,
             errorMessage = if (sections.isEmpty()) lastErrorMessage else null,
+            browseSections = allEntries.map { (_, section) -> section },
         )
     }
 

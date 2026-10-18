@@ -40,8 +40,8 @@ internal fun SmartBrowseScreen(
 ) {
     val homeState by HomeRepository.uiState.collectAsStateWithLifecycle()
     val watchedState by WatchedRepository.uiState.collectAsStateWithLifecycle()
-    val sections = remember(homeState.sections, category) {
-        homeState.sections.forSmartBrowse(category)
+    val sections = remember(homeState.browseSections, category) {
+        homeState.browseSections.forSmartBrowse(category)
     }
     val listState = rememberLazyListState()
 

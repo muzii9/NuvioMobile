@@ -50,6 +50,8 @@ data class HomeUiState(
     val heroItems: List<MetaPreview> = emptyList(),
     val sections: List<HomeCatalogSection> = emptyList(),
     val errorMessage: String? = null,
+    // All fetched catalog sections from enabled sources, regardless of Home layout preferences.
+    val browseSections: List<HomeCatalogSection> = emptyList(),
 )
 
 internal fun shouldShowInitialHomeLoading(
