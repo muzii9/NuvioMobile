@@ -27,6 +27,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
+import kotlin.time.TimeSource
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
@@ -183,9 +184,12 @@ object AddonRepository {
             return AddAddonResult.Error(getString(Res.string.addon_already_installed))
         }
 
+        var measuredResponseTimeMs: Long? = null
         val manifest = try {
             withContext(Dispatchers.Default) {
+                val requestStartedAt = TimeSource.Monotonic.markNow()
                 val payload = fetchAddonResponseText(manifestUrl)
+                measuredResponseTimeMs = requestStartedAt.elapsedNow().inWholeMilliseconds.coerceAtLeast(1L)
                 AddonManifestParser.parse(
                     manifestUrl = manifestUrl,
                     payload = payload,
@@ -200,6 +204,7 @@ object AddonRepository {
                 addons = current.addons + ManagedAddon(
                     manifestUrl = manifestUrl,
                     manifest = manifest,
+                    responseTimeMs = measuredResponseTimeMs,
                     isRefreshing = false,
                     errorMessage = null,
                 ),
@@ -293,11 +298,14 @@ object AddonRepository {
         var refreshJob: Job? = null
         refreshJob = scope.launch {
             try {
+                var measuredResponseTimeMs: Long? = null
                 val result = runCatching {
+                    val requestStartedAt = TimeSource.Monotonic.markNow()
                     val payload = fetchAddonResponseText(
                         url = manifestUrl,
                         forceRefresh = forceRefresh,
                     )
+                    measuredResponseTimeMs = requestStartedAt.elapsedNow().inWholeMilliseconds.coerceAtLeast(1L)
                     AddonManifestParser.parse(
                         manifestUrl = manifestUrl,
                         payload = payload,
@@ -314,6 +322,7 @@ object AddonRepository {
                                     onSuccess = { manifest ->
                                         addon.copy(
                                             manifest = manifest,
+                                            responseTimeMs = measuredResponseTimeMs,
                                             isRefreshing = false,
                                             errorMessage = null,
                                         )
@@ -321,6 +330,7 @@ object AddonRepository {
                                     onFailure = { error ->
                                         addon.copy(
                                             isRefreshing = false,
+                                            responseTimeMs = null,
                                             errorMessage = error.message ?: getString(Res.string.addon_load_manifest_failed),
                                         )
                                     },
