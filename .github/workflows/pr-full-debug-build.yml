@@ -1,6 +1,10 @@
 name: PR Full Debug Build
 
 on:
+  # Isolated feature-branch CI: registers and validates this fork without touching cmp-rewrite.
+  push:
+    branches:
+      - feature/addon-latency
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [cmp-rewrite]
