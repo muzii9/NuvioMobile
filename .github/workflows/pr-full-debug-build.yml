@@ -13,6 +13,12 @@ on:
 permissions:
   contents: read
 
+# Official Nuvio Cloud public client configuration, published by NuvioMedia/self-host.
+# Publishable API keys are client-visible by design; never use service_role or secret keys here.
+env:
+  NUVIO_SUPABASE_URL: "https://api.nuvio.tv"
+  NUVIO_SUPABASE_ANON_KEY: "sb_publishable_1Clq8rlTVACkdcZuqr6_AD__xUUC_EN"
+
 concurrency:
   group: pr-full-debug-build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -45,6 +51,16 @@ jobs:
           else
             touch local.properties
           fi
+
+      - name: Validate account backend configuration
+        run: |
+          test -n "$NUVIO_SUPABASE_URL"
+          test -n "$NUVIO_SUPABASE_ANON_KEY"
+          case "$NUVIO_SUPABASE_ANON_KEY" in
+            sb_publishable_*) ;;
+            *) echo "Invalid Nuvio client publishable key" >&2; exit 1 ;;
+          esac
+          echo "Nuvio public client configuration is present."
 
       - name: Build fullDebug APK
         run: ./gradlew :androidApp:assembleFullDebug -Pnuvio.android.distribution=full -Pnuvio.ios.distribution=appstore --stacktrace
