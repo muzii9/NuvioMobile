@@ -53,6 +53,7 @@ data class ManagedAddon(
     val enabled: Boolean = true,
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null,
+    val responseTimeMs: Long? = null,
 ) {
     val isActive: Boolean
         get() = enabled && manifest != null
@@ -63,6 +64,16 @@ data class ManagedAddon(
             ?: manifestUrl.substringBefore("?").substringAfterLast("/").ifBlank {
                 runBlocking { getString(Res.string.generic_addon) }
             }
+}
+
+internal fun formatAddonResponseTime(durationMs: Long): String {
+    val safeMs = durationMs.coerceAtLeast(1L)
+    if (safeMs < 1_000L) return "$safeMs ms"
+
+    val roundedTenths = safeMs / 100L + if (safeMs % 100L >= 50L) 1L else 0L
+    val seconds = roundedTenths / 10L
+    val tenths = roundedTenths % 10L
+    return if (tenths == 0L) "$seconds s" else "$seconds.$tenths s"
 }
 
 data class AddonsUiState(
