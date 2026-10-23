@@ -28,6 +28,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,7 +42,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.build.AppFeaturePolicy
@@ -83,8 +86,27 @@ fun AddonsScreen(
 internal fun AddonsSettingsPageContent(
     modifier: Modifier = Modifier,
 ) {
+    // Refresh addon response times only while this screen is composed.
+    // Stagger requests so thirty-plus installed addons never refresh in one burst.
     LaunchedEffect(Unit) {
         AddonRepository.initialize()
+        while (true) {
+            delay(90_000L)
+            val urls = AddonRepository.uiState.value.addons
+                .filter { it.enabled }
+                .map { it.manifestUrl }
+                .distinct()
+            for (url in urls) {
+                if (AddonRepository.uiState.value.addons.any { it.manifestUrl == url && it.enabled }) {
+                    AddonRepository.refreshAddon(
+                        manifestUrl = url,
+                        forceRefresh = true,
+                        source = "auto",
+                    )
+                }
+                delay(2_000L)
+            }
+        }
     }
 
     val uiState by AddonRepository.uiState.collectAsStateWithLifecycle()
@@ -166,6 +188,7 @@ internal fun AddonsSettingsPageContent(
                         AddonRepository.refreshAddon(
                             manifestUrl = addon.manifestUrl,
                             forceRefresh = true,
+                            source = "manual",
                         )
                     },
                     onEnabledChange = { enabled ->
@@ -430,49 +453,57 @@ private fun InstalledAddonCard(
             )
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = addon.displayTitle,
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    val responseTimeMs = addon.responseTimeMs
-                        ?.takeIf { addon.enabled && !addon.isRefreshing && addon.errorMessage == null }
-                    if (responseTimeMs != null) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = formatAddonResponseTime(responseTimeMs),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = when {
-                                responseTimeMs < 300L -> Color(0xFF30C778)
-                                responseTimeMs < 1_000L -> Color(0xFFE5BA4E)
-                                else -> Color(0xFFF49A43)
-                            },
-                            maxLines = 1,
-                        )
-                    } else if (addon.enabled && !addon.isRefreshing && addon.errorMessage != null) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(Res.string.addons_badge_unavailable),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error,
-                            maxLines = 1,
-                        )
-                    }
-                }
+                Text(
+                    text = addon.displayTitle,
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 manifest?.version?.let { version ->
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = stringResource(Res.string.addons_version_format, version),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(
+                modifier = Modifier.width(86.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val responseTimeMs = addon.responseTimeMs
+                    ?.takeIf { addon.enabled && !addon.isRefreshing && addon.errorMessage == null }
+                if (responseTimeMs != null) {
+                    Text(
+                        text = formatAddonResponseTime(responseTimeMs),
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
+                        textAlign = TextAlign.End,
+                        color = when {
+                            responseTimeMs < 300L -> Color(0xFF30C778)
+                            responseTimeMs < 1_000L -> Color(0xFFE5BA4E)
+                            responseTimeMs < 5_000L -> Color(0xFFF49A43)
+                            else -> Color(0xFFE95A5A)
+                        },
+                        maxLines = 1,
+                    )
+                } else if (addon.enabled && !addon.isRefreshing && addon.errorMessage != null) {
+                    Text(
+                        text = stringResource(Res.string.addons_badge_unavailable),
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.labelMedium,
+                        textAlign = TextAlign.End,
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             Switch(
                 checked = addon.enabled,
                 onCheckedChange = onEnabledChange,
@@ -483,6 +514,7 @@ private fun InstalledAddonCard(
                     uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant,
                 ),
             )
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
