@@ -5,6 +5,7 @@ import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.core.sync.putSyncOriginClientId
 import com.nuvio.app.features.profiles.ProfileRepository
 import io.github.jan.supabase.postgrest.postgrest
+import io.ktor.http.Url
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.rpc
 import kotlinx.coroutines.CoroutineScope
@@ -52,6 +53,7 @@ private const val ADDON_PUSH_DEBOUNCE_MS = 500L
 object AddonRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val log = Logger.withTag("AddonRepository")
+    private val latencyLog = Logger.withTag("AddonLatency")
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val _uiState = MutableStateFlow(AddonsUiState())
     val uiState: StateFlow<AddonsUiState> = _uiState.asStateFlow()
@@ -87,7 +89,7 @@ object AddonRepository {
             val existing = existingByUrl[manifestUrl]
             val addon = _uiState.value.addons.firstOrNull { it.manifestUrl == manifestUrl }
             if (addon?.enabled == true && (existing == null || (addon.manifest == null && !addon.isRefreshing))) {
-                refreshAddon(manifestUrl)
+                refreshAddon(manifestUrl, source = "startup")
             }
         }
     }
@@ -132,7 +134,7 @@ object AddonRepository {
 
             val urls = rowsByUrl.keys.toList()
             log.i { "pullFromServer() — server returned ${rows.size} addons" }
-            urls.forEachIndexed { i, u -> log.d { "  server[$i]: $u" } }
+            urls.forEachIndexed { i, u -> log.d { "  server[$i]: host=${safeAddonHost(u)}" } }
 
             val existingByUrl = _uiState.value.addons.associateBy(ManagedAddon::manifestUrl)
             _uiState.value = AddonsUiState(
@@ -150,7 +152,7 @@ object AddonRepository {
                 val existing = existingByUrl[url]
                 val addon = _uiState.value.addons.firstOrNull { it.manifestUrl == url }
                 if (addon?.enabled == true && (existing == null || (addon.manifest == null && !addon.isRefreshing))) {
-                    refreshAddon(url)
+                    refreshAddon(url, source = "sync")
                 }
             }
             initialized = true
@@ -173,7 +175,7 @@ object AddonRepository {
         if (isUsingPrimaryAddonsFromSecondaryProfile()) {
             return AddAddonResult.Error(getString(Res.string.profile_primary_addons_required))
         }
-        log.i { "addAddon() — rawUrl=$rawUrl" }
+        log.i { "addAddon() — requested install" }
         val manifestUrl = try {
             normalizeManifestUrl(rawUrl)
         } catch (error: IllegalArgumentException) {
@@ -188,7 +190,7 @@ object AddonRepository {
         val manifest = try {
             withContext(Dispatchers.Default) {
                 val requestStartedAt = TimeSource.Monotonic.markNow()
-                val payload = fetchAddonResponseText(manifestUrl)
+                val payload = fetchAddonResponseText(manifestUrl, forceRefresh = true)
                 measuredResponseTimeMs = requestStartedAt.elapsedNow().inWholeMilliseconds.coerceAtLeast(1L)
                 AddonManifestParser.parse(
                     manifestUrl = manifestUrl,
@@ -196,9 +198,16 @@ object AddonRepository {
                 )
             }
         } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            latencyLog.w {
+                "source=install host=${safeAddonHost(manifestUrl)} status=failed reason=${error::class.simpleName ?: "unknown"}"
+            }
             return AddAddonResult.Error(error.message ?: getString(Res.string.addon_load_manifest_failed))
         }
 
+        latencyLog.i {
+            "source=install host=${safeAddonHost(manifestUrl)} status=ok responseMs=$measuredResponseTimeMs"
+        }
         _uiState.update { current ->
             current.copy(
                 addons = current.addons + ManagedAddon(
@@ -217,7 +226,7 @@ object AddonRepository {
 
     fun removeAddon(manifestUrl: String) {
         if (isUsingPrimaryAddonsFromSecondaryProfile()) return
-        log.i { "removeAddon() — $manifestUrl" }
+        log.i { "removeAddon() — host=${safeAddonHost(manifestUrl)}" }
         var changed = false
         _uiState.update { current ->
             val updatedAddons = current.addons.filterNot { it.manifestUrl == manifestUrl }
@@ -274,7 +283,7 @@ object AddonRepository {
         persist()
         pushToServer()
         if (shouldRefresh) {
-            refreshAddon(manifestUrl)
+            refreshAddon(manifestUrl, source = "toggle")
         }
     }
 
@@ -283,13 +292,15 @@ object AddonRepository {
             refreshAddon(
                 manifestUrl = addon.manifestUrl,
                 forceRefresh = true,
+                source = "bulk",
             )
         }
     }
 
     fun refreshAddon(
         manifestUrl: String,
-        forceRefresh: Boolean = false,
+        forceRefresh: Boolean = true,
+        source: String = "manual",
     ) {
         val existingJob = activeRefreshJobs[manifestUrl]
         if (existingJob?.isActive == true) return
@@ -311,6 +322,21 @@ object AddonRepository {
                         payload = payload,
                     )
                 }
+                result.exceptionOrNull()?.let { error ->
+                    if (error is CancellationException) throw error
+                }
+                result.fold(
+                    onSuccess = {
+                        latencyLog.i {
+                            "source=$source host=${safeAddonHost(manifestUrl)} status=ok responseMs=$measuredResponseTimeMs"
+                        }
+                    },
+                    onFailure = { error ->
+                        latencyLog.w {
+                            "source=$source host=${safeAddonHost(manifestUrl)} status=failed reason=${error::class.simpleName ?: "unknown"}"
+                        }
+                    },
+                )
 
                 _uiState.update { current ->
                     current.copy(
@@ -403,6 +429,9 @@ object AddonRepository {
             )
         }
     }
+
+    private fun safeAddonHost(rawUrl: String): String =
+        runCatching { Url(rawUrl).host }.getOrDefault("unknown-host")
 
     private fun persist() {
         val addons = _uiState.value.addons
