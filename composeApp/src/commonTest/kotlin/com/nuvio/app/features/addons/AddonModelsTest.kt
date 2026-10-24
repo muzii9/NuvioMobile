@@ -4,6 +4,9 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.hours
 
 class AddonModelsTest {
 
@@ -17,6 +20,22 @@ class AddonModelsTest {
         assertEquals("2.2 s", formatAddonResponseTime(2_200))
         assertEquals("2.3 s", formatAddonResponseTime(2_250))
         assertEquals("10 s", formatAddonResponseTime(9_999))
+    }
+
+    @Test
+    fun `addon latency age displays human-readable freshness`() {
+        assertEquals("just now", formatAddonLatencyAge(30.seconds))
+        assertEquals("1m ago", formatAddonLatencyAge(1.minutes))
+        assertEquals("59m ago", formatAddonLatencyAge(59.minutes))
+        assertEquals("1h ago", formatAddonLatencyAge(61.minutes))
+        assertEquals("2h ago", formatAddonLatencyAge(2.hours))
+    }
+
+    @Test
+    fun `addon latency is marked stale after five minutes`() {
+        assertFalse(isAddonLatencyStale(4.minutes))
+        assertTrue(isAddonLatencyStale(5.minutes))
+        assertTrue(isAddonLatencyStale(2.hours))
     }
 
     @Test
