@@ -29,6 +29,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 import kotlin.time.TimeSource
+import kotlin.time.TimeMark
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
@@ -187,11 +188,13 @@ object AddonRepository {
         }
 
         var measuredResponseTimeMs: Long? = null
+        var measuredCheckedAt: TimeMark? = null
         val manifest = try {
             withContext(Dispatchers.Default) {
                 val requestStartedAt = TimeSource.Monotonic.markNow()
                 val payload = fetchAddonResponseText(manifestUrl, forceRefresh = true)
                 measuredResponseTimeMs = requestStartedAt.elapsedNow().inWholeMilliseconds.coerceAtLeast(1L)
+                measuredCheckedAt = TimeSource.Monotonic.markNow()
                 AddonManifestParser.parse(
                     manifestUrl = manifestUrl,
                     payload = payload,
@@ -214,6 +217,7 @@ object AddonRepository {
                     manifestUrl = manifestUrl,
                     manifest = manifest,
                     responseTimeMs = measuredResponseTimeMs,
+                    responseCheckedAt = measuredCheckedAt,
                     isRefreshing = false,
                     errorMessage = null,
                 ),
@@ -273,7 +277,7 @@ object AddonRepository {
                         addon
                     } else {
                         changed = true
-                        shouldRefresh = enabled && addon.manifest == null && !addon.isRefreshing
+                        shouldRefresh = enabled && !addon.isRefreshing
                         addon.copy(enabled = enabled)
                     }
                 },
@@ -302,6 +306,8 @@ object AddonRepository {
         forceRefresh: Boolean = true,
         source: String = "manual",
     ) {
+        // Skip queued refreshes for addons that were removed or disabled.
+        if (_uiState.value.addons.none { it.manifestUrl == manifestUrl && it.enabled }) return
         val existingJob = activeRefreshJobs[manifestUrl]
         if (existingJob?.isActive == true) return
 
@@ -310,6 +316,7 @@ object AddonRepository {
         refreshJob = scope.launch {
             try {
                 var measuredResponseTimeMs: Long? = null
+                var measuredCheckedAt: TimeMark? = null
                 val result = runCatching {
                     val requestStartedAt = TimeSource.Monotonic.markNow()
                     val payload = fetchAddonResponseText(
@@ -317,6 +324,7 @@ object AddonRepository {
                         forceRefresh = forceRefresh,
                     )
                     measuredResponseTimeMs = requestStartedAt.elapsedNow().inWholeMilliseconds.coerceAtLeast(1L)
+                    measuredCheckedAt = TimeSource.Monotonic.markNow()
                     AddonManifestParser.parse(
                         manifestUrl = manifestUrl,
                         payload = payload,
@@ -349,6 +357,7 @@ object AddonRepository {
                                         addon.copy(
                                             manifest = manifest,
                                             responseTimeMs = measuredResponseTimeMs,
+                                            responseCheckedAt = measuredCheckedAt,
                                             isRefreshing = false,
                                             errorMessage = null,
                                         )
@@ -357,6 +366,7 @@ object AddonRepository {
                                         addon.copy(
                                             isRefreshing = false,
                                             responseTimeMs = null,
+                                            responseCheckedAt = null,
                                             errorMessage = error.message ?: getString(Res.string.addon_load_manifest_failed),
                                         )
                                     },
