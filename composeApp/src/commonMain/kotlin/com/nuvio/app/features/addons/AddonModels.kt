@@ -60,6 +60,7 @@ data class ManagedAddon(
     val enabled: Boolean = true,
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null,
+    val responseTimeMs: Long? = null,
 ) {
     val isActive: Boolean
         get() = enabled && manifest != null
@@ -70,6 +71,17 @@ data class ManagedAddon(
             ?: manifestUrl.substringBefore("?").substringAfterLast("/").ifBlank {
                 runBlocking { getString(Res.string.generic_addon) }
             }
+}
+
+// Last measured elapsed time of an addon manifest request, not stream latency or ICMP ping.
+internal fun formatAddonResponseTime(durationMs: Long): String {
+    val safeMs = durationMs.coerceAtLeast(1L)
+    if (safeMs < 1_000L) return "$safeMs ms"
+
+    val roundedTenths = (safeMs + 50L) / 100L
+    val seconds = roundedTenths / 10L
+    val tenths = roundedTenths % 10L
+    return if (tenths == 0L) "$seconds s" else "$seconds.$tenths s"
 }
 
 data class AddonsUiState(
