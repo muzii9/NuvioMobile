@@ -8,6 +8,17 @@ import kotlin.test.assertTrue
 class AddonModelsTest {
 
     @Test
+    fun `manifest request duration formats milliseconds and seconds`() {
+        assertEquals("1 ms", formatAddonResponseTime(0L))
+        assertEquals("95 ms", formatAddonResponseTime(95L))
+        assertEquals("999 ms", formatAddonResponseTime(999L))
+        assertEquals("1 s", formatAddonResponseTime(1_000L))
+        assertEquals("2.2 s", formatAddonResponseTime(2_200L))
+        assertEquals("2.3 s", formatAddonResponseTime(2_250L))
+        assertEquals("10 s", formatAddonResponseTime(9_999L))
+    }
+
+    @Test
     fun `disabled addon is installed but not active`() {
         val addon = ManagedAddon(
             manifestUrl = "https://example.test/manifest.json",
