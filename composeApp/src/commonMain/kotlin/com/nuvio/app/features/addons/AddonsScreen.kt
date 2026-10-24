@@ -507,6 +507,8 @@ private fun InstalledAddonCard(
                     ),
                     textAlign = TextAlign.End,
                     color = when {
+                        addon.errorMessage != null && !addon.isRefreshing ->
+                            MaterialTheme.colorScheme.error
                         !addon.enabled || stale || responseTimeMs == null ->
                             MaterialTheme.colorScheme.onSurfaceVariant
                         responseTimeMs < 300L -> Color(0xFF30C778)
@@ -522,7 +524,7 @@ private fun InstalledAddonCard(
                         addon.isRefreshing -> "Checking…"
                         addon.errorMessage != null -> "Retry needed"
                         checkedAge == null -> "Not checked"
-                        stale -> "Stale " + when {
+                        stale && checkedAge != null -> "Stale " + when {
                             checkedAge.inWholeHours > 0L -> "${checkedAge.inWholeHours}h"
                             else -> "${checkedAge.inWholeMinutes}m"
                         }
