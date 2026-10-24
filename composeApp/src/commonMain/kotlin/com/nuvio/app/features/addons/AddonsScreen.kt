@@ -41,7 +41,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.build.AppFeaturePolicy
@@ -444,20 +446,54 @@ private fun InstalledAddonCard(
                         text = stringResource(Res.string.addons_version_format, version),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Switch(
-                checked = addon.enabled,
-                onCheckedChange = onEnabledChange,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                    uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant,
-                ),
-            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(
+                modifier = Modifier.width(86.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val responseTimeMs = addon.responseTimeMs
+                    ?.takeIf { addon.enabled && !addon.isRefreshing && addon.errorMessage == null }
+                if (responseTimeMs != null) {
+                    Text(
+                        text = formatAddonResponseTime(responseTimeMs),
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
+                        color = when {
+                            responseTimeMs < 300L -> Color(0xFF30C778)
+                            responseTimeMs < 1_000L -> Color(0xFFE5BA4E)
+                            else -> Color(0xFFF49A43)
+                        },
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                    )
+                } else if (addon.enabled && !addon.isRefreshing && addon.errorMessage != null) {
+                    Text(
+                        text = stringResource(Res.string.addons_badge_unavailable),
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Switch(
+                    checked = addon.enabled,
+                    onCheckedChange = onEnabledChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primary,
+                        uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant,
+                    ),
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
