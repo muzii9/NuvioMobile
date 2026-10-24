@@ -1,6 +1,9 @@
 package com.nuvio.app.features.addons
 
 import kotlinx.coroutines.runBlocking
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeMark
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.generic_addon
 import org.jetbrains.compose.resources.getString
@@ -54,6 +57,7 @@ data class ManagedAddon(
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null,
     val responseTimeMs: Long? = null,
+    val responseCheckedAt: TimeMark? = null,
 ) {
     val isActive: Boolean
         get() = enabled && manifest != null
@@ -75,6 +79,18 @@ internal fun formatAddonResponseTime(durationMs: Long): String {
     val tenths = roundedTenths % 10L
     return if (tenths == 0L) "$seconds s" else "$seconds.$tenths s"
 }
+
+// Monotonic age avoids incorrect timestamps when the device clock changes.
+internal fun formatAddonLatencyAge(age: Duration): String {
+    val minutes = age.inWholeMinutes.coerceAtLeast(0L)
+    return when {
+        minutes == 0L -> "just now"
+        minutes < 60L -> "${minutes}m ago"
+        else -> "${age.inWholeHours.coerceAtLeast(1L)}h ago"
+    }
+}
+
+internal fun isAddonLatencyStale(age: Duration): Boolean = age >= 5.minutes
 
 data class AddonsUiState(
     val addons: List<ManagedAddon> = emptyList(),
