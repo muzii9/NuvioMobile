@@ -91,7 +91,7 @@ internal fun AddonsSettingsPageContent(
     LaunchedEffect(Unit) {
         AddonRepository.initialize()
         while (true) {
-            delay(90_000L)
+            delay(180_000L)
             val urls = AddonRepository.uiState.value.addons
                 .filter { it.enabled }
                 .map { it.manifestUrl }
@@ -104,12 +104,19 @@ internal fun AddonsSettingsPageContent(
                         source = "auto",
                     )
                 }
-                delay(2_000L)
+                delay(2_500L)
             }
         }
     }
 
     val uiState by AddonRepository.uiState.collectAsStateWithLifecycle()
+    var freshnessTick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000L)
+            freshnessTick++
+        }
+    }
     val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
     var addonUrl by rememberSaveable { mutableStateOf("") }
@@ -174,6 +181,7 @@ internal fun AddonsSettingsPageContent(
                 val configureUrl = addon.manifestUrl.toConfigureUrl()
                 InstalledAddonCard(
                     addon = addon,
+                    freshnessTick = freshnessTick,
                     onMoveUpClick = if (index > 0) {
                         { AddonRepository.moveAddon(index, index - 1) }
                     } else {
@@ -432,6 +440,7 @@ private fun EmptyStateCard(
 @Composable
 private fun InstalledAddonCard(
     addon: ManagedAddon,
+    freshnessTick: Int,
     onMoveUpClick: (() -> Unit)?,
     onMoveDownClick: (() -> Unit)?,
     onRefreshClick: () -> Unit,
@@ -475,45 +484,67 @@ private fun InstalledAddonCard(
             Column(
                 modifier = Modifier.width(86.dp),
                 horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                val responseTimeMs = addon.responseTimeMs
-                    ?.takeIf { addon.enabled && !addon.isRefreshing && addon.errorMessage == null }
-                if (responseTimeMs != null) {
-                    Text(
-                        text = formatAddonResponseTime(responseTimeMs),
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
-                        textAlign = TextAlign.End,
-                        color = when {
-                            responseTimeMs < 300L -> Color(0xFF30C778)
-                            responseTimeMs < 1_000L -> Color(0xFFE5BA4E)
-                            responseTimeMs < 5_000L -> Color(0xFFF49A43)
-                            else -> Color(0xFFE95A5A)
-                        },
-                        maxLines = 1,
-                    )
-                } else if (addon.enabled && !addon.isRefreshing && addon.errorMessage != null) {
-                    Text(
-                        text = stringResource(Res.string.addons_badge_unavailable),
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.labelMedium,
-                        textAlign = TextAlign.End,
-                        color = MaterialTheme.colorScheme.error,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                val checkedAge = remember(addon.responseCheckedAt, freshnessTick) {
+                    addon.responseCheckedAt?.elapsedNow()
                 }
-            Switch(
-                checked = addon.enabled,
-                onCheckedChange = onEnabledChange,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                    uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant,
-                ),
-            )
+                val stale = checkedAge?.let(::isAddonLatencyStale) == true
+                // Preserve the last measurement while a refresh is running.
+                val responseTimeMs = addon.responseTimeMs
+                    ?.takeIf { addon.enabled && addon.errorMessage == null }
+                val statusText = when {
+                    !addon.enabled -> "—"
+                    addon.errorMessage != null && !addon.isRefreshing -> "Unavailable"
+                    responseTimeMs != null -> formatAddonResponseTime(responseTimeMs)
+                    else -> "—"
+                }
+                Text(
+                    text = statusText,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = if (statusText == "Unavailable") 12.sp else 16.sp,
+                    ),
+                    textAlign = TextAlign.End,
+                    color = when {
+                        !addon.enabled || stale || responseTimeMs == null ->
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        responseTimeMs < 300L -> Color(0xFF30C778)
+                        responseTimeMs < 1_000L -> Color(0xFFE5BA4E)
+                        responseTimeMs < 5_000L -> Color(0xFFF49A43)
+                        else -> Color(0xFFE95A5A)
+                    },
+                    maxLines = 1,
+                )
+                Text(
+                    text = when {
+                        !addon.enabled -> "Disabled"
+                        addon.isRefreshing -> "Checking…"
+                        addon.errorMessage != null -> "Retry needed"
+                        checkedAge == null -> "Not checked"
+                        stale -> "Stale " + when {
+                            checkedAge.inWholeHours > 0L -> "${checkedAge.inWholeHours}h"
+                            else -> "${checkedAge.inWholeMinutes}m"
+                        }
+                        else -> formatAddonLatencyAge(checkedAge)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Switch(
+                    checked = addon.enabled,
+                    onCheckedChange = onEnabledChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primary,
+                        uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant,
+                    ),
+                )
             }
         }
 
